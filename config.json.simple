@@ -1,0 +1,20 @@
+{
+    "auto_clear": true,
+    "auto_clear_delay": 5,
+    "multi": true,
+    "databases": [
+        {
+            "path": "xxxx.kdbx",
+            "password": "******"
+        }
+    ],
+    "proxy": {
+        "http": "IP:PORT",
+        "https": "IP:PORT"
+    },
+    "favicon_apis": [
+        "https://latin-blue-stingray.faviconkit.com/{domain}/32",
+        "https://ico.kucat.cn/get.php?url=https://{domain}/",
+        "https://www.google.com/s2/favicons?domain={domain}&size=32"
+    ]
+}

@@ -1,0 +1,5 @@
+*.log
+*.tmp
+.git
+/icons
+config.json

@@ -1,0 +1,12 @@
+{
+    "ID": "2f4e384e-76ex-45c4-bcaf-b16f5e5xx28f",
+    "ActionKeyword": "kp2",
+    "Name": "KeepassX",
+    "Description": "Get KeepassX Password",
+    "Author": "xiaobu",
+    "Version": "0.0.1",
+    "Language": "python",
+    "Website": "",
+    "IcoPath": "app.ico",
+    "ExecuteFileName": "main.py"
+}
