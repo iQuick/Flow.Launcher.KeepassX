@@ -46,8 +46,6 @@ class KeepassLauncher(FlowLauncher):
                 data.extend(self._find_keepass_db(db, query))
             except Exception as e:
                 logger.error(f"Error query find in database : {e}")
-        logger.info("--- result :")
-        logger.info(json.dumps(data))
         return data
 
     def context_menu(self, data):
@@ -178,7 +176,7 @@ class KeepassLauncher(FlowLauncher):
                 "IcoPath": get_asset_icon("delete"),
                 "JsonRPCAction": {
                     "method": "action_delete_entry",
-                    "parameters": [info["delete"]],
+                    "parameters": [info],
                 }
             },
         ]

@@ -35,7 +35,6 @@ class KeepassBase(ABC):
             "url": entry.url or "",
             "remark": entry.attachments or "",
             "tags": entry.tags or [],
-            "delete": entry.delete
         }
 
     def _extract_entry_with_score(self, entry, score):
