@@ -35,6 +35,41 @@ def download_favicon(url, name, save_dir="", apis=[], proxy={}):
     def is_base64_image(st):
         return re.match(r'^data:image/(png|jpeg|jpg|gif|webp|x-icon);base64', st)
     
+    def pt_link(response):
+        soup = BeautifulSoup(response.text, 'html.parser')
+        favicon_link = None
+        link_tag = soup.find('link', rel='icon')
+        if link_tag:
+            favicon_link = link_tag.get('href')
+        if not favicon_link:
+            link_tag = soup.find('link', rel='shortcut icon')
+            if link_tag:
+                favicon_link = link_tag.get('href')
+        if not favicon_link:
+            link_tag = soup.find('link', rel='SHORTCUT ICON')
+            if link_tag:
+                favicon_link = link_tag.get('href')
+        if not favicon_link:
+            if base_url.endswith("/"):
+                favicon_link = base_url + "favicon.ico"
+            else:
+                favicon_link = base_url + "/favicon.ico"
+        if favicon_link:
+            if is_base64_image(favicon_link):
+                file_path = os.path.join(save_dir, name)
+                data = base64.b64decode(favicon_link)
+                with open(file_path, 'wb') as f:
+                    f.write(data)
+                return file_path
+            elif favicon_link.startswith("http"):
+                return download_file(favicon_link, name, save_dir)
+            elif favicon_link.startswith("//"):
+                return download_file("https:" + favicon_link, name, save_dir)
+            else:
+                if favicon_link.startswith("/"):
+                    return download_file(f"{url}{favicon_link}", name, save_dir)
+                return download_file(f"{url}/{favicon_link}", name, save_dir)
+    
     def download_file(url, name, save_dir):
         try:
             print(f"Start download favicon : {url}")
@@ -67,6 +102,11 @@ def download_favicon(url, name, save_dir="", apis=[], proxy={}):
             print(f'len : {len(content)}')
             if len(content) <= 512:
                 return None
+            
+            try:
+                pt_link(favicon_response)
+            except:
+                pass
 
             if isinstance(content, str) and is_base64_image(content):
                 print("is base64 image")
@@ -112,33 +152,8 @@ def download_favicon(url, name, save_dir="", apis=[], proxy={}):
                 response = requests.get(url, verify=False, timeout=5)
                 response.raise_for_status()
 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            favicon_link = None
-            link_tag = soup.find('link', rel='icon')
-            if link_tag:
-                favicon_link = link_tag.get('href')
-            if not favicon_link:
-                link_tag = soup.find('link', rel='shortcut icon')
-                if link_tag:
-                    favicon_link = link_tag.get('href')
-            if not favicon_link:
-                link_tag = soup.find('link', rel='SHORTCUT ICON')
-                if link_tag:
-                    favicon_link = link_tag.get('href')
-            if not favicon_link:
-                if base_url.endswith("/"):
-                    favicon_link = base_url + "favicon.ico"
-                else:
-                    favicon_link = base_url + "/favicon.ico"
-            if favicon_link:
-                if favicon_link.startswith("http"):
-                    return download_file(favicon_link, name, save_dir)
-                elif favicon_link.startswith("//"):
-                    return download_file("https:" + favicon_link, name, save_dir)
-                else:
-                    if favicon_link.startswith("/"):
-                        return download_file(f"{url}{favicon_link}", name, save_dir)
-                    return download_file(f"{url}/{favicon_link}", name, save_dir)
+            pt_link(response)
+
         except Exception as e:
             print("Error download method 2")
             print(e)

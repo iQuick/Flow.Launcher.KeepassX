@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-import subprocess
 import sys
 import json
 import shutil
@@ -39,7 +38,7 @@ def _icon(icon=""):
             return _get_icon_path(f"{name}.png")
         elif os.path.exists(_get_icon_path(f"{name}.webp")):
             return _get_icon_path(f"{name}.webp")
-    return _get_icon_path("../app.ico")
+    return _get_icon_path("../assets/app.ico")
 
 
 def get_root(file):
@@ -61,8 +60,10 @@ def get_config_file():
 
 
 def get_app_icon():
-    return _get_icon_path("../app.ico")
+    return _get_icon_path("../assets/app.ico")
 
+def get_asset_icon(name):
+    return _get_icon_path(f"../assets/{name}")
 
 def get_keepass_icon(info):
     return _icon(info["url"])
@@ -97,7 +98,7 @@ def download_icons():
     try:
         args = [
             sys.executable.replace("pythonw", "python"),
-            get_root("src/plugin/download.py"),
+            get_root("src/plugin/download2.py"),
             get_root(__CONFIG),
             get_root(__ICONS),
         ]
@@ -140,6 +141,7 @@ __all__ = [
     "config",
     "get_root",
     "get_app_icon",
+    'get_asset_icon',
     "get_config_file",
     "edit_file",
     "download_icons",

@@ -28,12 +28,14 @@ class KeepassBase(ABC):
     def _extract_entry_data(self, entry):
         """提取条目数据的通用方法"""
         return {
+            # "id": entry.id,
             "title": entry.title or "",
             "username": entry.username or "",
             "password": entry.password or "",
             "url": entry.url or "",
             "remark": entry.attachments or "",
             "tags": entry.tags or [],
+            "delete": entry.delete
         }
 
     def _extract_entry_with_score(self, entry, score):
@@ -169,7 +171,6 @@ class KeepassSmall(KeepassBase):
             with pykeepass.PyKeePass(database_path, password) as kdb:
                 matched_entries = []
                 search_lower = search_string.lower()
-                
                 for entry in kdb.entries:
                     # 验证条目有效性
                     if not self._validate_entry(entry):

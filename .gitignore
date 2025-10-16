@@ -1,6 +1,9 @@
 *.log
 *.tmp
+.venv
+.idea
 .git
 /icons
+/iconsx
 config.json
 logger.txt
