@@ -5,7 +5,7 @@ import datetime
 class _Logger:
     def init(self, debug, file):
         self.debug = debug
-        self.file = file;
+        self.file = file
         log_dir = os.path.dirname(self.file)
         if log_dir and not os.path.exists(log_dir):
             try:

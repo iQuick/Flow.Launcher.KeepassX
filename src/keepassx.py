@@ -1,5 +1,5 @@
+import base64
 import concurrent.futures
-from functools import partial
 from abc import ABC, abstractmethod
 
 import pykeepass
@@ -17,6 +17,24 @@ class KeepassBase(ABC):
             return self._search_keepass(db_path, db_password, query)
         return []
 
+    def delete(self, entry):
+        path, password = self._decrypt_db_connect(entry['dbc'])
+        with pykeepass.PyKeePass(path, password) as kdb:
+            try:
+                keepass = kdb.find_entries(
+                    title=entry['title'],
+                    username=entry['username'],
+                    password=entry['password'],
+                    url=entry['url'],
+                    remark=entry['remark'],
+                    first=True
+                )
+                keepass.delete()
+            except Exception as e:
+                logger.error("Error delete entry from keepass")
+                logger.error(e)
+
+
     def all(self, db):
         """统一的获取全部条目接口"""
         try:
@@ -25,10 +43,21 @@ class KeepassBase(ABC):
             logger.error(f"Error getting all keepass entries: {e}")
             return []
 
-    def _extract_entry_data(self, entry):
+    def _encrypt_db_connect(self, path, password):
+        data = f"{path}#|#{password}"
+        encrypted = base64.b64encode(data.encode('utf-8')).decode('utf-8')
+        return encrypted
+
+    def _decrypt_db_connect(self, dbc):
+        decoded = base64.b64decode(dbc.encode('utf-8')).decode('utf-8')
+        path, password = decoded.split('#|#', 1)  # 只分割第一个 |
+        return path, password
+
+    def _extract_entry_data(self, dbc, entry):
         """提取条目数据的通用方法"""
         return {
             # "id": entry.id,
+            "db": dbc,
             "title": entry.title or "",
             "username": entry.username or "",
             "password": entry.password or "",
@@ -37,9 +66,9 @@ class KeepassBase(ABC):
             "tags": entry.tags or [],
         }
 
-    def _extract_entry_with_score(self, entry, score):
+    def _extract_entry_with_score(self, dbc, entry, score):
         """提取带评分的条目数据"""
-        data = self._extract_entry_data(entry)
+        data = self._extract_entry_data(dbc, entry)
         data["score"] = score
         return data
 
@@ -159,15 +188,16 @@ class KeepassSmall(KeepassBase):
         """获取所有条目"""
         data = []
         with pykeepass.PyKeePass(db["path"], db["password"]) as kdb:
+            dbc = self._encrypt_db_connect(db["path"], db["password"])
             for entry in kdb.entries:
-                data.append(self._extract_entry_data(entry))
+                data.append(self._extract_entry_data(dbc, entry))
         return data
 
     def _search_keepass(self, database_path, password, search_string):
         """小型数据库的搜索实现"""
         try:
-            logger.info(f"search keepass small: {database_path} - {search_string}")
             with pykeepass.PyKeePass(database_path, password) as kdb:
+                dbc = self._encrypt_db_connect(database_path, password)
                 matched_entries = []
                 search_lower = search_string.lower()
                 for entry in kdb.entries:
@@ -187,7 +217,7 @@ class KeepassSmall(KeepassBase):
                     
                     if total_score > 0:
                         matched_entries.append(
-                            self._extract_entry_with_score(entry, total_score)
+                            self._extract_entry_with_score(dbc, entry, total_score)
                         )
                 
                 return matched_entries
@@ -210,8 +240,9 @@ class KeepassLarge(KeepassBase):
     def _get_all_entries_generator(self, db):
         """生成器版本，避免一次性加载所有数据到内存"""
         with pykeepass.PyKeePass(db["path"], db["password"]) as kdb:
+            dbc = self._encrypt_db_connect(db["path"], db["password"])
             for entry in kdb.entries:
-                yield self._extract_entry_data(entry)
+                yield self._extract_entry_data(dbc, entry)
 
     def _search_keepass(self, database_path, password, search_string):
         """大型数据库的并行搜索实现"""

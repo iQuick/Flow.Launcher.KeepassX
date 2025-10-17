@@ -29,6 +29,7 @@ from src import (
 class KeepassLauncher(FlowLauncher):
 
     def query(self, query):
+        logger.info("--------------------------------------------")
         if self._check_none(query):
             return list(
                 filter(lambda x: x["Title"].startswith(query), self._get_tip_none())
@@ -77,7 +78,7 @@ class KeepassLauncher(FlowLauncher):
 
     def action_delete_entry(self, entry):
         try:
-            entry["delete"]()
+            keepass.delete(self, entry)
         except:
             logger.error("Error delete entry!")
 
