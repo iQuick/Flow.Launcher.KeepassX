@@ -16,6 +16,7 @@ import requests
 import pykeepass
 from bs4 import BeautifulSoup
 import urllib3
+from construct import Array
 
 # 屏蔽 InsecureRequestWarning 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -74,43 +75,49 @@ class FaviconDownloader:
 
     # 常见的favicon默认路径（按优先级排序）
     DEFAULT_FAVICON_PATHS = [
-        '/favicon.ico',
-        '/favicon.png',
-        '/favicon.svg',
-        '/favicon.jpg',
-        '/favicon.jpeg',
-        '/favicon.gif',
-        '/favicon.webp',
-        '/assets/favicon.ico',
-        '/assets/images/favicon.ico',
-        '/assets/img/favicon.ico',
-        '/static/favicon.ico',
-        '/static/images/favicon.ico',
-        '/static/img/favicon.ico',
-        '/images/favicon.ico',
-        '/img/favicon.ico',
-        '/public/favicon.ico',
-        '/resources/favicon.ico',
-        '/wp-content/uploads/favicon.ico',
-        '/sites/default/files/favicon.ico',
-        '/apple-touch-icon.png',
-        '/apple-touch-icon-precomposed.png'
+        '/favicon',
+        # assets
+        '/assets/favicon',
+        '/assets/img/favicon',
+        '/assets/images/favicon',
+        # static
+        '/static/favicon',
+        '/static/img/favicon',
+        '/static/images/favicon',
+        # image | resource
+        '/img/favicon',
+        '/images/favicon',
+        '/public/favicon',
+        '/resources/favicon',
+        '/wp-content/uploads/favicon',
+        '/sites/default/files/favicon',
+        '/apple-touch-icon',
+        '/apple-touch-icon-precomposed'
     ]
 
     SUPPORTED_EXTENSIONS = {'.svg', '.jpg', '.jpeg', '.png', '.webp', '.ico', '.gif'}
     MIN_FILE_SIZE = 512  # 最小文件大小（字节）
 
-    def __init__(self, proxy: Optional[Dict] = None):
+    def __init__(self, proxy: Optional[Dict] = None, apis: List[str] = None):
         self.proxy = proxy or {}
+        self.apis = apis or []
+        if proxy:
+            for key, value in self.proxy.items():
+                if "IP:PROXY" == value:
+                    del self.proxy[key]
         self.has_proxy = bool(self.proxy)
         self.stats = DownloadStats()
+        self.session_no_proxy = None
+        self.session_with_proxy = None
 
         # 创建两个session：一个带代理，一个不带代理
         logger.info("创建不带代理的 session")
-        self.sessions = [self._create_session()]
+        self.session_no_proxy = self._create_session()
+        self.sessions = [self.session_no_proxy]
         if self.has_proxy:
             logger.info("创建带代理的 session")
-            self.sessions.append(self._create_session(self.proxy))
+            self.session_with_proxy = self._create_session(self.proxy)
+            self.sessions.append(self.session_with_proxy)
 
 
     def _create_session(self, proxy = None) -> requests.Session:
@@ -135,16 +142,18 @@ class FaviconDownloader:
     def _make_request(self, session: requests.Session, url: str, headers=HEADERS, timeout=10, retry=2) -> Optional[requests.Response]:
         """使用指定session发起请求"""
         try:
-            logger.info(f"| 尝试请求: {url}")
+            logger.info(f"| 尝试请求({3 - retry}): {url}")
             response = session.get(url, timeout=timeout, headers=headers)
             response.raise_for_status()
             logger.info(f"| 请求成功")
             return response
         except Exception as e:
-            if retry == 0:
-                logger.info(f"| 请求失败 {e}")
+            if retry > 0:
+                self._make_request(session, url, random.choice(HDS), timeout, retry - 1)
             else:
-                self._make_request(session, url, random.choice(HDS), timeout, --retry)
+                logger.info(f"| 请求失败 {e}")
+                logger.info(f"| ---------")
+
         return None
 
     def _check_connect(self, session: requests.Session, url: str, timeout=10) -> bool:
@@ -423,12 +432,12 @@ class FaviconDownloader:
             logger.info(f"| 保存文件失败 {url}")
             return False
 
-    def download_favicon(self, url: str, save_path: Path, apis: List[str] = None) -> bool:
+    def download_favicon(self, url: str, save_path: Path) -> bool:
         """下载favicon的主入口"""
         logger.info(f"┌{"─" * 60}")
         logger.info(f"| 开始抓取站点 favicon : {url}")
         logger.info(f"├{"─" * 60}")
-        download_result = self._download_favicon_inner(url, save_path, apis)
+        download_result = self._download_favicon_inner(url, save_path)
         if download_result:
             logger.info(f"| 下载成功: {url}")
         else:
@@ -437,12 +446,10 @@ class FaviconDownloader:
         logger.info(f"└{"─" * 60}\n")
         return download_result
 
-    def _download_favicon_inner(self, url: str, save_path: Path, apis: List[str] = None) -> bool:
+    def _download_favicon_inner(self, url: str, save_path: Path) -> bool:
         """下载favicon的内部实现"""
         if not url:
             return False
-
-        apis = apis or []
 
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -496,9 +503,11 @@ class FaviconDownloader:
             return True
 
         # 方法3: 使用第三方API
-        if len(apis) > 0:
-            logger.info(f"├─────── 方法3 : 使用第三方API ───────")
-            if self._try_favicon_from_apis(session, domain, save_path, apis):
+        logger.info(f"├─────── 方法3 : 使用第三方API ({len(self.apis)}) ───────")
+        if len(self.apis) > 0:
+            if self.session_with_proxy:
+                session = self.session_with_proxy
+            if self._try_favicon_from_apis(session, domain, save_path):
                 return True
 
         return False
@@ -506,14 +515,14 @@ class FaviconDownloader:
     def _try_favicon_from_paths(self, session: requests.Session, base_url: str, save_path: Path) -> bool:
         """尝试常见的默认favicon路径"""
         logger.info(f"| 尝试默认favicon路径: {base_url}")
-
         for path in self.DEFAULT_FAVICON_PATHS:
-            favicon_url = urljoin(base_url, path)
-            logger.info(f"| 尝试默认路径: {favicon_url}")
+            for ext in self.SUPPORTED_EXTENSIONS:
+                favicon_url = urljoin(base_url, f"{path}{ext}")
+                logger.info(f"| 尝试默认路径: {favicon_url}")
 
-            if self._download_file(session, favicon_url, save_path):
-                logger.info(f"| 默认路径成功: {favicon_url}")
-                return True
+                if self._download_file(session, favicon_url, save_path):
+                    logger.info(f"| 默认路径成功: {favicon_url}")
+                    return True
 
         logger.info("| 所有默认路径都失败了")
         return False
@@ -580,10 +589,9 @@ class FaviconDownloader:
             self.stats.add_failure(url, f"页面解析异常: {str(e)}")
             return False
 
-    def _try_favicon_from_apis(self, session: requests.Session, domain: str,
-                               save_path: Path, apis: List[str]) -> bool:
+    def _try_favicon_from_apis(self, session: requests.Session, domain: str, save_path: Path) -> bool:
         """使用第三方API下载favicon"""
-        for api in apis:
+        for api in self.apis:
             try:
                 api_url = api.replace('{domain}', domain)
                 logger.info(f"| 尝试API: {api_url}")
@@ -740,8 +748,6 @@ class KeePassProcessor:
         try:
             with pykeepass.PyKeePass(db_path, password=password) as kdb:
                 logger.info(f"处理数据库: {db_path}\n")
-
-                apis = db_config.get('favicon_apis', [])
                 for entry in kdb.entries:
                     url = entry.url
                     if not url:
@@ -752,7 +758,7 @@ class KeePassProcessor:
                     filename = hashlib.md5(url.encode('utf-8')).hexdigest() + '.ico'
                     save_path = save_dir / filename
 
-                    if self.downloader.download_favicon(url, save_path, apis):
+                    if self.downloader.download_favicon(url, save_path):
                         success_count += 1
 
         except Exception as e:
@@ -763,7 +769,6 @@ class KeePassProcessor:
     def process_all_databases(self, config: Dict, save_dir: Path) -> int:
         """处理所有数据库"""
         total_success = 0
-
         for db_config in config.get('databases', []):
             success_count = self.process_database(db_config, save_dir)
             total_success += success_count
@@ -780,6 +785,7 @@ def main():
 
     config_file = sys.argv[1]
     save_dir = Path(sys.argv[2])
+    logger.info("开始读取配置")
 
     if not os.path.exists(config_file):
         logger.error(f"配置文件不存在: {config_file}")
@@ -788,13 +794,17 @@ def main():
     try:
         with open(config_file, 'r', encoding='utf-8') as f:
             config = json.load(f)
+        logger.info(f"config : {config}")
     except Exception as e:
         logger.error(f"读取配置文件失败: {e}")
         sys.exit(1)
 
     # 创建下载器和处理器
     proxy = config.get('proxy', {})
-    downloader = FaviconDownloader(proxy=proxy)
+    logger.info(f"proxy : {proxy}")
+    apis = config.get('favicon_apis', {})
+    logger.info(f"apis : {apis}")
+    downloader = FaviconDownloader(proxy=proxy, apis=apis)
     processor = KeePassProcessor(downloader)
 
     logger.info("开始处理...")

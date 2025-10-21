@@ -96,7 +96,7 @@ class KeepassLauncher(FlowLauncher):
         return query == None or query == "" or query.startswith("@")
 
     def _check_database(self, config):
-        return config and config["databases"] and len(config["databases"]) > 0
+        return config and config["databases"] and len(config["databases"]) > 0 and config["databases"][0]["path"] != 'xxxx.kdbx'
 
     def _get_tip_none(self):
         return [
