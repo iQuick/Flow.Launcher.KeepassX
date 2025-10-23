@@ -4,7 +4,7 @@
     "Name": "KeepassX",
     "Description": "Get KeepassX Password",
     "Author": "xiaobu",
-    "Version": "0.9.3",
+    "Version": "0.9.4",
     "Language": "python",
     "Website": "https://github.com/iQuick/Flow.Launcher.KeepassX",
     "IcoPath": "assets/app.ico",
