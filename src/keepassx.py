@@ -1,5 +1,6 @@
 import base64
 import concurrent.futures
+import uuid
 from abc import ABC, abstractmethod
 
 import pykeepass
@@ -21,18 +22,16 @@ class KeepassBase(ABC):
         path, password = self._decrypt_db_connect(entry['dbc'])
         with pykeepass.PyKeePass(path, password) as kdb:
             try:
-                keepass = kdb.find_entries(
-                    title=entry['title'],
-                    username=entry['username'],
-                    password=entry['password'],
-                    url=entry['url'],
-                    remark=entry['remark'],
-                    first=True
-                )
-                keepass.delete()
+                kp_entry = kdb.find_entries(uuid=uuid.UUID(entry['uuid']), first=True)
+                logger.info(f"Delete match result : {kp_entry}")
+                if kp_entry:
+                    kp_entry.delete()
+                    kdb.save()
+                    logger.info(f"Delete successful!")
+                else:
+                    logger.warn(f"Not found entry in keepass: {entry['title']}")
             except Exception as e:
-                logger.error("Error delete entry from keepass")
-                logger.error(e)
+                logger.error(f"Error delete entry from keepass : {e}")
 
 
     def all(self, db):
@@ -55,21 +54,26 @@ class KeepassBase(ABC):
 
     def _extract_entry_data(self, dbc, entry):
         """提取条目数据的通用方法"""
-        return {
-            # "id": entry.id,
-            "db": dbc,
-            "title": entry.title or "",
-            "username": entry.username or "",
-            "password": entry.password or "",
-            "url": entry.url or "",
-            "remark": entry.attachments or "",
-            "tags": entry.tags or [],
-        }
+        try:
+            return {
+                "dbc": dbc,
+                "uuid": str(entry.uuid),
+                "title": entry.title or "",
+                "username": entry.username or "",
+                "password": entry.password or "",
+                "url": entry.url or "",
+                "remark": entry.attachments or "",
+                "tags": entry.tags or [],
+            }
+        except Exception as e:
+            logger.error(f"Error extract entry data : {entry} , {e}")
+            return None
 
     def _extract_entry_with_score(self, dbc, entry, score):
         """提取带评分的条目数据"""
         data = self._extract_entry_data(dbc, entry)
-        data["score"] = score
+        if data:
+            data["score"] = score
         return data
 
     def _validate_entry(self, entry):
@@ -190,7 +194,9 @@ class KeepassSmall(KeepassBase):
         with pykeepass.PyKeePass(db["path"], db["password"]) as kdb:
             dbc = self._encrypt_db_connect(db["path"], db["password"])
             for entry in kdb.entries:
-                data.append(self._extract_entry_data(dbc, entry))
+                item = self._extract_entry_data(dbc, entry)
+                if item:
+                    data.append(item)
         return data
 
     def _search_keepass(self, database_path, password, search_string):
@@ -216,9 +222,9 @@ class KeepassSmall(KeepassBase):
                     total_score = self._calculate_detailed_score(title, username, url, search_lower)
                     
                     if total_score > 0:
-                        matched_entries.append(
-                            self._extract_entry_with_score(dbc, entry, total_score)
-                        )
+                        item = self._extract_entry_with_score(dbc, entry, total_score)
+                        if item:
+                            matched_entries.append(item)
                 
                 return matched_entries
                 
@@ -242,7 +248,9 @@ class KeepassLarge(KeepassBase):
         with pykeepass.PyKeePass(db["path"], db["password"]) as kdb:
             dbc = self._encrypt_db_connect(db["path"], db["password"])
             for entry in kdb.entries:
-                yield self._extract_entry_data(dbc, entry)
+                item = self._extract_entry_data(dbc, entry)
+                if item:
+                    yield item
 
     def _search_keepass(self, database_path, password, search_string):
         """大型数据库的并行搜索实现"""

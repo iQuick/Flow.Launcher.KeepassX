@@ -81,9 +81,9 @@ class KeepassLauncher(FlowLauncher):
 
     def action_delete_entry(self, entry):
         try:
-            keepass.delete(self, entry)
-        except:
-            logger.error("Error delete entry!")
+            keepass.delete(entry)
+        except Exception as e:
+            logger.error(f"Error delete entry : {e}")
 
     def action_edit_file(self, file):
         logger.info(f"action edit file : {file}")
