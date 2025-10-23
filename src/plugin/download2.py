@@ -96,7 +96,7 @@ class FaviconDownloader:
     ]
 
     SUPPORTED_EXTENSIONS = {'.svg', '.jpg', '.jpeg', '.png', '.webp', '.ico', '.gif'}
-    MIN_FILE_SIZE = 512  # 最小文件大小（字节）
+    MIN_FILE_SIZE = 128 * 3  # 最小文件大小（字节）
 
     def __init__(self, proxy: Optional[Dict] = None, apis: List[str] = None):
         self.proxy = proxy or {}

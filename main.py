@@ -51,10 +51,13 @@ class KeepassLauncher(FlowLauncher):
 
     def context_menu(self, data):
         if data:
+            logger.info(f"context menu type : {data}")
             type = data[0]
-            logger.info(f"context menu type : {type}")
-            if type == "keepass":
-                return self._get_menu_keepass(data[1])
+            try:
+                if type == "keepass":
+                    return self._get_menu_keepass(data[1])
+            except Exception as e:
+                logger.error(f"Error context menu : {e}")
         return []
 
     def _find_keepass_db(self, db, query):
@@ -133,53 +136,53 @@ class KeepassLauncher(FlowLauncher):
             }
         ]
 
-    def _get_menu_keepass(info):
+    def _get_menu_keepass(self, info):
         return [
             {
                 "Title": "复制密码",
                 "SubTitle": "******",
-                "IcoPath": info["username"],
+                "IcoPath": get_asset_icon("password.png"),
                 "JsonRPCAction": {
                     "method": "action_copy_query_result",
                     "parameters": [info["password"]],
-                }
+                },
             },
             {
                 "Title": "复制用户名",
-                "SubTitle": info["name"],
-                "IcoPath": get_asset_icon("copy"),
+                "SubTitle": info["username"],
+                "IcoPath": get_asset_icon("username.png"),
                 "JsonRPCAction": {
                     "method": "action_copy_query_result",
-                    "parameters": [info["name"]],
-                }
+                    "parameters": [info["username"]],
+                },
             },
             {
                 "Title": "复制标题",
                 "SubTitle": info["title"],
-                "IcoPath": get_asset_icon("copy"),
+                "IcoPath": get_asset_icon("title.png"),
                 "JsonRPCAction": {
                     "method": "action_copy_query_result",
                     "parameters": [info["title"]],
-                }
+                },
             },
             {
                 "Title": "复制地址",
                 "SubTitle": info["url"],
-                "IcoPath": get_asset_icon("copy"),
+                "IcoPath": get_asset_icon("link.png"),
                 "JsonRPCAction": {
                     "method": "action_copy_query_result",
                     "parameters": [info["url"]],
-                }
+                },
             },
             {
                 "Title": "删除",
                 "SubTitle": "Delete entry",
-                "IcoPath": get_asset_icon("delete"),
+                "IcoPath": get_asset_icon("delete.png"),
                 "JsonRPCAction": {
                     "method": "action_delete_entry",
                     "parameters": [info],
-                }
-            },
+                },
+            }
         ]
 
 
